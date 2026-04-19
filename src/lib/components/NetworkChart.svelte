@@ -1,37 +1,13 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { listen } from "@tauri-apps/api/event";
-  import { invoke } from "@tauri-apps/api/core";
+  import type { SpeedEntry } from "$lib/metrics";
 
-  interface SpeedEntry {
-    down: number;
-    up: number;
-  }
-
-  let history: SpeedEntry[] = [];
-  let current: SpeedEntry = { down: 0, up: 0 };
-  let unlisten: (() => void) | null = null;
+  export let history: SpeedEntry[];
+  export let current: SpeedEntry;
 
   const WIDTH = 360;
   const HEIGHT = 160;
   const PAD = 30;
 
-  onMount(async () => {
-    // Load existing history
-    history = await invoke<SpeedEntry[]>("get_history");
-
-    // Listen for live updates
-    unlisten = await listen<SpeedEntry>("network-update", (event) => {
-      current = event.payload;
-      history = [...history.slice(-59), current];
-    });
-  });
-
-  onDestroy(() => {
-    unlisten?.();
-  });
-
-  // Reactive helpers
   $: maxVal = Math.max(0.1, ...history.map((e) => Math.max(e.down, e.up))) * 1.2;
 
   function toPath(data: SpeedEntry[], key: "down" | "up"): string {
@@ -54,14 +30,13 @@
   }
 </script>
 
-<main>
-  <div class="speeds">
+<section class="chart-block">
+  <div class="headline">
     <span class="down">↓ {formatSpeed(current.down)}</span>
     <span class="up">↑ {formatSpeed(current.up)}</span>
   </div>
 
   <svg viewBox="0 0 {WIDTH} {HEIGHT}">
-    <!-- grid lines -->
     {#each [0.25, 0.5, 0.75] as frac}
       <line
         class="grid"
@@ -72,19 +47,14 @@
       />
     {/each}
 
-    <!-- axes -->
     <line class="axis" x1={PAD} y1={PAD} x2={PAD} y2={HEIGHT - PAD} />
     <line class="axis" x1={PAD} y1={HEIGHT - PAD} x2={WIDTH - PAD} y2={HEIGHT - PAD} />
 
-    <!-- y-axis label -->
     <text class="label" x={PAD - 4} y={PAD + 4} text-anchor="end">
       {formatSpeed(maxVal)}
     </text>
-    <text class="label" x={PAD - 4} y={HEIGHT - PAD} text-anchor="end">
-      0
-    </text>
+    <text class="label" x={PAD - 4} y={HEIGHT - PAD} text-anchor="end">0</text>
 
-    <!-- speed lines -->
     {#if history.length >= 2}
       <path class="line down" d={downPath} />
       <path class="line up" d={upPath} />
@@ -96,20 +66,13 @@
     <span class="legend-up">■ Upload</span>
     <span class="legend-time">Letzte 60 s</span>
   </div>
-</main>
+</section>
 
 <style>
-  :global(body) {
-    margin: 0;
-    background: #1a1a2e;
-    color: #e0e0e0;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  .chart-block {
+    margin-bottom: 8px;
   }
-  main {
-    padding: 16px;
-    user-select: none;
-  }
-  .speeds {
+  .headline {
     display: flex;
     justify-content: center;
     gap: 24px;
@@ -117,8 +80,12 @@
     font-weight: 600;
     margin-bottom: 12px;
   }
-  .down { color: #4fc3f7; }
-  .up   { color: #81c784; }
+  .down {
+    color: #4fc3f7;
+  }
+  .up {
+    color: #81c784;
+  }
   svg {
     width: 100%;
     height: auto;
@@ -141,8 +108,12 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .line.down { stroke: #4fc3f7; }
-  .line.up   { stroke: #81c784; }
+  .line.down {
+    stroke: #4fc3f7;
+  }
+  .line.up {
+    stroke: #81c784;
+  }
   .legend {
     display: flex;
     justify-content: center;
@@ -151,6 +122,10 @@
     color: #888;
     margin-top: 8px;
   }
-  .legend-down { color: #4fc3f7; }
-  .legend-up   { color: #81c784; }
+  .legend-down {
+    color: #4fc3f7;
+  }
+  .legend-up {
+    color: #81c784;
+  }
 </style>
