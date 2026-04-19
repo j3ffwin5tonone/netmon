@@ -4,31 +4,42 @@
   import { invoke } from "@tauri-apps/api/core";
   import NetworkChart from "$lib/components/NetworkChart.svelte";
   import CpuChart from "$lib/components/CpuChart.svelte";
-  import type { MetricsHistory, MetricsSnapshot, SpeedEntry } from "$lib/metrics";
+  import MemoryChart from "$lib/components/MemoryChart.svelte";
+  import type { MemoryEntry, MetricsHistory, MetricsSnapshot, SpeedEntry } from "$lib/metrics";
 
   let networkHistory: SpeedEntry[] = [];
   let cpuHistory: number[] = [];
+  let memoryHistory: number[] = [];
   let currentNetwork: SpeedEntry = { down: 0, up: 0 };
   let currentCpu = 0;
+  let currentMemoryPercent = 0;
+  let currentMemory: MemoryEntry = { used_bytes: 0, total_bytes: 0 };
   let unlisten: (() => void) | null = null;
 
   onMount(async () => {
     const h = await invoke<MetricsHistory>("get_metrics_history");
     networkHistory = h.network;
     cpuHistory = h.cpu;
+    memoryHistory = h.memory;
     if (networkHistory.length > 0) {
       currentNetwork = networkHistory[networkHistory.length - 1];
     }
     if (cpuHistory.length > 0) {
       currentCpu = cpuHistory[cpuHistory.length - 1];
     }
+    if (memoryHistory.length > 0) {
+      currentMemoryPercent = memoryHistory[memoryHistory.length - 1];
+    }
 
     unlisten = await listen<MetricsSnapshot>("metrics-update", (event) => {
       const p = event.payload;
       currentNetwork = p.network;
       currentCpu = p.cpu_percent;
+      currentMemoryPercent = p.memory_percent;
+      currentMemory = p.memory;
       networkHistory = [...networkHistory.slice(-59), p.network];
       cpuHistory = [...cpuHistory.slice(-59), p.cpu_percent];
+      memoryHistory = [...memoryHistory.slice(-59), p.memory_percent];
     });
   });
 
@@ -40,6 +51,11 @@
 <main>
   <NetworkChart history={networkHistory} current={currentNetwork} />
   <CpuChart history={cpuHistory} current={currentCpu} />
+  <MemoryChart
+    history={memoryHistory}
+    current={currentMemoryPercent}
+    memory={currentMemory}
+  />
 </main>
 
 <style>

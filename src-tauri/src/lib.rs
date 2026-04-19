@@ -58,10 +58,11 @@ pub fn run() {
 
                     if let Some(tray) = handle.tray_by_id("netmon-tray") {
                         let _ = tray.set_title(Some(&format!(
-                            "↓ {} ↑ {} · CPU {:.0}%",
+                            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
                             format_speed(snapshot.network.down),
                             format_speed(snapshot.network.up),
-                            snapshot.cpu_percent
+                            snapshot.cpu_percent,
+                            snapshot.memory_percent
                         )));
                     }
 
