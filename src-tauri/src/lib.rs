@@ -77,10 +77,10 @@ pub fn run() {
 
             // --- Tray Icon ---
             let _tray = TrayIconBuilder::with_id("netmon-tray")
+                .menu(&menu)
                 .tooltip("Network Monitor")
                 .title("↓ 0.0 ↑ 0.0")          // macOS shows this text in the menu bar
-                .show_menu_on_left_click(false)
-                .menu_on_left_click(false)       // left-click opens window, not menu
+                .show_menu_on_left_click(false) // left-click opens window, not menu
                 .on_menu_event(|app, event| {
                     if event.id() == "quit" {
                         app.exit(0);
