@@ -15,10 +15,15 @@ export interface MetricsSnapshot {
   cpu_percent: number;
   memory: MemoryEntry;
   memory_percent: number;
+  /** 0–100 when `gpu_supported` */
+  gpu_percent: number;
+  gpu_supported: boolean;
 }
 
 export interface MetricsHistory {
   network: SpeedEntry[];
   cpu: number[];
   memory: number[];
+  gpu: number[];
+  gpu_supported: boolean;
 }

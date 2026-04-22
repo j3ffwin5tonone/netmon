@@ -2,6 +2,7 @@
 //! as new fields on [`MetricsSnapshot`] / [`MetricsHistory`] and dedicated submodules.
 
 mod cpu;
+mod gpu;
 mod memory;
 mod network;
 
@@ -27,6 +28,9 @@ pub struct MetricsSnapshot {
     pub cpu_percent: f32,
     pub memory: MemoryEntry,
     pub memory_percent: f32,
+    /// GPU load 0–100 when `gpu_supported` is true (Apple Silicon + IOReport).
+    pub gpu_percent: f32,
+    pub gpu_supported: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -34,12 +38,15 @@ pub struct MetricsHistory {
     pub network: Vec<SpeedEntry>,
     pub cpu: Vec<f32>,
     pub memory: Vec<f32>,
+    pub gpu: Vec<f32>,
+    pub gpu_supported: bool,
 }
 
 pub struct AppState {
     network: network::NetworkMetrics,
     cpu: cpu::CpuMetrics,
     memory: memory::MemoryMetrics,
+    gpu: gpu::GpuMetrics,
 }
 
 impl AppState {
@@ -48,6 +55,7 @@ impl AppState {
             network: network::NetworkMetrics::new(),
             cpu: cpu::CpuMetrics::new(),
             memory: memory::MemoryMetrics::new(),
+            gpu: gpu::GpuMetrics::new(),
         }
     }
 
@@ -55,6 +63,8 @@ impl AppState {
         let network = self.network.measure();
         let cpu_percent = self.cpu.measure();
         let (used_bytes, total_bytes, memory_percent) = self.memory.measure();
+        let gpu_supported = self.gpu.supported();
+        let gpu_percent = self.gpu.measure();
         MetricsSnapshot {
             network,
             cpu_percent,
@@ -63,6 +73,8 @@ impl AppState {
                 total_bytes,
             },
             memory_percent,
+            gpu_percent,
+            gpu_supported,
         }
     }
 
@@ -71,6 +83,8 @@ impl AppState {
             network: self.network.history().to_vec(),
             cpu: self.cpu.history().to_vec(),
             memory: self.memory.history().to_vec(),
+            gpu: self.gpu.history().to_vec(),
+            gpu_supported: self.gpu.supported(),
         }
     }
 }

@@ -57,13 +57,25 @@ pub fn run() {
                     };
 
                     if let Some(tray) = handle.tray_by_id("netmon-tray") {
-                        let _ = tray.set_title(Some(&format!(
-                            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
-                            format_speed(snapshot.network.down),
-                            format_speed(snapshot.network.up),
-                            snapshot.cpu_percent,
-                            snapshot.memory_percent
-                        )));
+                        let title = if snapshot.gpu_supported {
+                            format!(
+                                "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}% · GPU {:.0}%",
+                                format_speed(snapshot.network.down),
+                                format_speed(snapshot.network.up),
+                                snapshot.cpu_percent,
+                                snapshot.memory_percent,
+                                snapshot.gpu_percent
+                            )
+                        } else {
+                            format!(
+                                "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
+                                format_speed(snapshot.network.down),
+                                format_speed(snapshot.network.up),
+                                snapshot.cpu_percent,
+                                snapshot.memory_percent
+                            )
+                        };
+                        let _ = tray.set_title(Some(&title));
                     }
 
                     let _ = handle.emit("metrics-update", &snapshot);

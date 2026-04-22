@@ -19,3 +19,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.32"
 tokio = { version = "1", features = ["time"] }
+
+[target.aarch64-apple-darwin.dependencies]
+macmon = "0.7.0"
