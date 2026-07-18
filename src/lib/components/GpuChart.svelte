@@ -1,124 +1,134 @@
 <script lang="ts">
-  export let history: number[];
-  export let current: number;
   /** IOReport / Apple Silicon — false on Intel Macs and non-macOS builds */
-  export let supported: boolean;
+  let {
+    history,
+    current,
+    supported,
+  }: { history: number[]; current: number; supported: boolean } = $props();
 
-  const WIDTH = 360;
-  const HEIGHT = 160;
-  const PAD = 30;
+  const WIDTH = 300;
+  const HEIGHT = 96;
   const SCALE_MAX = 100;
 
   function toPath(data: number[]): string {
     if (data.length < 2) return "";
     return data
       .map((d, i) => {
-        const x = PAD + (i / (data.length - 1)) * (WIDTH - PAD * 2);
+        const x = (i / (data.length - 1)) * WIDTH;
         const clamped = Math.min(SCALE_MAX, Math.max(0, d));
-        const y = HEIGHT - PAD - (clamped / SCALE_MAX) * (HEIGHT - PAD * 2);
+        const y = HEIGHT - 2 - (clamped / SCALE_MAX) * (HEIGHT - 6);
         return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(" ");
   }
 
-  $: gpuPath = toPath(history);
+  let gpuPath = $derived(toPath(history));
+  let gpuArea = $derived(
+    gpuPath ? `${gpuPath} L ${WIDTH} ${HEIGHT} L 0 ${HEIGHT} Z` : "",
+  );
+  let peak = $derived(history.length ? Math.max(...history) : 0);
 </script>
 
-<section class="chart-block">
-  <div class="headline">
+<section class="card">
+  <div class="card-header">
+    <span class="card-label">GPU</span>
     {#if supported}
-      <span class="gpu">GPU {current.toFixed(0)}%</span>
+      <span class="card-value">{current.toFixed(0)}%</span>
     {:else}
-      <span class="gpu-muted">GPU — n/v</span>
+      <span class="card-value muted">n/a</span>
     {/if}
   </div>
 
-  <svg viewBox="0 0 {WIDTH} {HEIGHT}">
-    {#each [0.25, 0.5, 0.75] as frac}
-      <line
-        class="grid"
-        x1={PAD}
-        y1={HEIGHT - PAD - frac * (HEIGHT - PAD * 2)}
-        x2={WIDTH - PAD}
-        y2={HEIGHT - PAD - frac * (HEIGHT - PAD * 2)}
-      />
-    {/each}
+  {#if supported}
+    <svg viewBox="0 0 {WIDTH} {HEIGHT}" preserveAspectRatio="none">
+      <line class="grid" x1="0" y1={HEIGHT * 0.25} x2={WIDTH} y2={HEIGHT * 0.25} />
+      <line class="grid" x1="0" y1={HEIGHT * 0.5} x2={WIDTH} y2={HEIGHT * 0.5} />
+      <line class="grid" x1="0" y1={HEIGHT * 0.75} x2={WIDTH} y2={HEIGHT * 0.75} />
+      {#if history.length >= 2}
+        <path class="area" d={gpuArea} />
+        <path class="line" d={gpuPath} />
+      {/if}
+    </svg>
+  {:else}
+    <div class="unsupported">GPU metrics require Apple Silicon</div>
+  {/if}
 
-    <line class="axis" x1={PAD} y1={PAD} x2={PAD} y2={HEIGHT - PAD} />
-    <line class="axis" x1={PAD} y1={HEIGHT - PAD} x2={WIDTH - PAD} y2={HEIGHT - PAD} />
-
-    <text class="label" x={PAD - 4} y={PAD + 4} text-anchor="end">100%</text>
-    <text class="label" x={PAD - 4} y={HEIGHT - PAD} text-anchor="end">0%</text>
-
-    {#if supported && history.length >= 2}
-      <path class="line gpu" d={gpuPath} />
-    {/if}
-  </svg>
-
-  <div class="legend">
+  <div class="card-footer">
+    <span>Apple Silicon · IOReport</span>
     {#if supported}
-      <span class="legend-gpu">■ GPU (Apple Silicon, IOReport)</span>
-    {:else}
-      <span class="legend-unavail">Grafik-Auslastung: Apple Silicon, macOS</span>
+      <span>Peak {peak.toFixed(0)}%</span>
     {/if}
-    <span class="legend-time">Letzte 60 s</span>
   </div>
 </section>
 
 <style>
-  .chart-block {
-    margin-bottom: 8px;
-  }
-  .headline {
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    border: 0.5px solid #e2e2e6;
+    padding: 14px 16px 12px;
     display: flex;
-    justify-content: center;
-    font-size: 22px;
+    flex-direction: column;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .card-label {
+    font-size: 12px;
     font-weight: 600;
-    margin-bottom: 12px;
+    color: #86868b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
-  .gpu {
-    color: #4fc3f7;
+  .card-value {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: #af52de;
+    font-variant-numeric: tabular-nums;
   }
-  .gpu-muted {
-    color: #666e80;
+  .card-value.muted {
+    color: #aeaeb2;
   }
   svg {
     width: 100%;
-    height: auto;
+    flex: 1;
+    min-height: 80px;
+    display: block;
   }
   .grid {
-    stroke: #2a2a4a;
-    stroke-width: 0.5;
-  }
-  .axis {
-    stroke: #3a3a5a;
+    stroke: #f0f0f2;
     stroke-width: 1;
   }
-  .label {
-    fill: #888;
-    font-size: 9px;
+  .area {
+    fill: rgba(175, 82, 222, 0.1);
   }
   .line {
     fill: none;
-    stroke-width: 2;
+    stroke: #af52de;
+    stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .line.gpu {
-    stroke: #4fc3f7;
-  }
-  .legend {
+  .unsupported {
+    flex: 1;
+    min-height: 80px;
     display: flex;
+    align-items: center;
     justify-content: center;
-    gap: 16px;
+    font-size: 12px;
+    color: #aeaeb2;
+    background: repeating-linear-gradient(-45deg, #fafafa 0 8px, #f4f4f6 8px 16px);
+    border-radius: 6px;
+  }
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
     font-size: 11px;
-    color: #888;
-    margin-top: 8px;
-  }
-  .legend-gpu {
-    color: #4fc3f7;
-  }
-  .legend-unavail {
-    color: #6a7088;
+    color: #86868b;
   }
 </style>

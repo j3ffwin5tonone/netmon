@@ -73,25 +73,31 @@
 </script>
 
 <main>
-  <NetworkChart history={networkHistory} current={currentNetwork} />
-  <CpuChart history={cpuHistory} current={currentCpu} />
-  <GpuChart
-    history={gpuHistory}
-    current={currentGpu}
-    supported={gpuSupported}
-  />
-  <MemoryChart
-    history={memoryHistory}
-    current={currentMemoryPercent}
-    memory={currentMemory}
-  />
+  <header>
+    <span class="app-name">netmon</span>
+    <span class="app-sub">Last 60 s · updated every second</span>
+  </header>
+  <div class="grid">
+    <NetworkChart history={networkHistory} current={currentNetwork} />
+    <CpuChart history={cpuHistory} current={currentCpu} />
+    <GpuChart
+      history={gpuHistory}
+      current={currentGpu}
+      supported={gpuSupported}
+    />
+    <MemoryChart
+      history={memoryHistory}
+      current={currentMemoryPercent}
+      memory={currentMemory}
+    />
+  </div>
 </main>
 
 <style>
   :global(body) {
     margin: 0;
-    background: #1a1a2e;
-    color: #e0e0e0;
+    background: #f5f5f7;
+    color: #1d1d1f;
     font-family:
       -apple-system,
       BlinkMacSystemFont,
@@ -100,7 +106,33 @@
       sans-serif;
   }
   main {
+    box-sizing: border-box;
+    min-height: 100vh;
     padding: 16px;
     user-select: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 2px;
+  }
+  .app-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .app-sub {
+    font-size: 12px;
+    color: #86868b;
+  }
+  .grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
   }
 </style>
