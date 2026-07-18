@@ -80,10 +80,10 @@ impl AppState {
 
     pub fn history_snapshot(&self) -> MetricsHistory {
         MetricsHistory {
-            network: self.network.history().to_vec(),
-            cpu: self.cpu.history().to_vec(),
-            memory: self.memory.history().to_vec(),
-            gpu: self.gpu.history().to_vec(),
+            network: self.network.history().iter().cloned().collect(),
+            cpu: self.cpu.history().iter().copied().collect(),
+            memory: self.memory.history().iter().copied().collect(),
+            gpu: self.gpu.history().iter().copied().collect(),
             gpu_supported: self.gpu.supported(),
         }
     }

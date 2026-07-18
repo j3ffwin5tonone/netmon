@@ -1,9 +1,10 @@
 use super::HISTORY_LEN;
+use std::collections::VecDeque;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 
 pub struct MemoryMetrics {
     system: System,
-    history: Vec<f32>,
+    history: VecDeque<f32>,
 }
 
 impl MemoryMetrics {
@@ -15,7 +16,7 @@ impl MemoryMetrics {
 
         Self {
             system,
-            history: Vec::with_capacity(HISTORY_LEN),
+            history: VecDeque::with_capacity(HISTORY_LEN),
         }
     }
 
@@ -29,15 +30,15 @@ impl MemoryMetrics {
             0.0
         };
 
-        self.history.push(pct);
-        if self.history.len() > HISTORY_LEN {
-            self.history.remove(0);
+        if self.history.len() == HISTORY_LEN {
+            self.history.pop_front();
         }
+        self.history.push_back(pct);
 
         (used, total, pct)
     }
 
-    pub fn history(&self) -> &[f32] {
+    pub fn history(&self) -> &VecDeque<f32> {
         &self.history
     }
 }

@@ -1,10 +1,11 @@
 mod metrics;
 
 use metrics::{format_speed, AppState, MetricsHistory};
-use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 #[tauri::command]
 fn get_metrics_history(state: State<'_, Mutex<AppState>>) -> MetricsHistory {
@@ -19,6 +20,21 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit])?;
 
+            let window_visible = Arc::new(AtomicBool::new(false));
+
+            if let Some(win) = app.get_webview_window("main") {
+                let vis = Arc::clone(&window_visible);
+                let hide_win = win.clone();
+                win.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = hide_win.hide();
+                        vis.store(false, Ordering::Relaxed);
+                    }
+                });
+            }
+
+            let vis_for_tray = Arc::clone(&window_visible);
             let _tray = TrayIconBuilder::with_id("netmon-tray")
                 .menu(&menu)
                 .tooltip("Network Monitor")
@@ -29,7 +45,7 @@ pub fn run() {
                         app.exit(0);
                     }
                 })
-                .on_tray_icon_event(|tray, event| {
+                .on_tray_icon_event(move |tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
@@ -38,6 +54,7 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(win) = app.get_webview_window("main") {
+                            vis_for_tray.store(true, Ordering::Relaxed);
                             let _ = win.show();
                             let _ = win.set_focus();
                         }
@@ -46,10 +63,12 @@ pub fn run() {
                 .build(app)?;
 
             let handle: AppHandle = app.handle().clone();
+            let vis_for_loop = Arc::clone(&window_visible);
             tauri::async_runtime::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
+                    // Mutex only covers sysinfo refreshes + history; GPU is lock-free last-value.
                     let snapshot = {
                         let state = handle.state::<Mutex<AppState>>();
                         let mut s = state.lock().unwrap();
@@ -78,7 +97,9 @@ pub fn run() {
                         let _ = tray.set_title(Some(&title));
                     }
 
-                    let _ = handle.emit("metrics-update", &snapshot);
+                    if vis_for_loop.load(Ordering::Relaxed) {
+                        let _ = handle.emit("metrics-update", &snapshot);
+                    }
                 }
             });
 

@@ -1,16 +1,17 @@
 use super::{SpeedEntry, HISTORY_LEN};
+use std::collections::VecDeque;
 use sysinfo::Networks;
 
 pub struct NetworkMetrics {
     networks: Networks,
-    history: Vec<SpeedEntry>,
+    history: VecDeque<SpeedEntry>,
 }
 
 impl NetworkMetrics {
     pub fn new() -> Self {
         Self {
             networks: Networks::new_with_refreshed_list(),
-            history: Vec::with_capacity(HISTORY_LEN),
+            history: VecDeque::with_capacity(HISTORY_LEN),
         }
     }
 
@@ -33,15 +34,15 @@ impl NetworkMetrics {
             up: up as f64 / 1_048_576.0,
         };
 
-        self.history.push(entry.clone());
-        if self.history.len() > HISTORY_LEN {
-            self.history.remove(0);
+        if self.history.len() == HISTORY_LEN {
+            self.history.pop_front();
         }
+        self.history.push_back(entry.clone());
 
         entry
     }
 
-    pub fn history(&self) -> &[SpeedEntry] {
+    pub fn history(&self) -> &VecDeque<SpeedEntry> {
         &self.history
     }
 }

@@ -8,17 +8,26 @@
   import MemoryChart from "$lib/components/MemoryChart.svelte";
   import type { MemoryEntry, MetricsHistory, MetricsSnapshot, SpeedEntry } from "$lib/metrics";
 
-  let networkHistory: SpeedEntry[] = [];
-  let cpuHistory: number[] = [];
-  let memoryHistory: number[] = [];
-  let gpuHistory: number[] = [];
-  let gpuSupported = false;
-  let currentNetwork: SpeedEntry = { down: 0, up: 0 };
-  let currentCpu = 0;
-  let currentMemoryPercent = 0;
-  let currentGpu = 0;
-  let currentMemory: MemoryEntry = { used_bytes: 0, total_bytes: 0 };
+  const HISTORY_LEN = 60;
+
+  let networkHistory = $state<SpeedEntry[]>([]);
+  let cpuHistory = $state<number[]>([]);
+  let memoryHistory = $state<number[]>([]);
+  let gpuHistory = $state<number[]>([]);
+  let gpuSupported = $state(false);
+  let currentNetwork = $state<SpeedEntry>({ down: 0, up: 0 });
+  let currentCpu = $state(0);
+  let currentMemoryPercent = $state(0);
+  let currentGpu = $state(0);
+  let currentMemory = $state<MemoryEntry>({ used_bytes: 0, total_bytes: 0 });
   let unlisten: (() => void) | null = null;
+
+  function pushRing<T>(history: T[], value: T) {
+    if (history.length >= HISTORY_LEN) {
+      history.shift();
+    }
+    history.push(value);
+  }
 
   onMount(async () => {
     const h = await invoke<MetricsHistory>("get_metrics_history");
@@ -41,6 +50,9 @@
     }
 
     unlisten = await listen<MetricsSnapshot>("metrics-update", (event) => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
       const p = event.payload;
       currentNetwork = p.network;
       currentCpu = p.cpu_percent;
@@ -48,10 +60,10 @@
       currentMemory = p.memory;
       currentGpu = p.gpu_percent;
       gpuSupported = p.gpu_supported;
-      networkHistory = [...networkHistory.slice(-59), p.network];
-      cpuHistory = [...cpuHistory.slice(-59), p.cpu_percent];
-      memoryHistory = [...memoryHistory.slice(-59), p.memory_percent];
-      gpuHistory = [...gpuHistory.slice(-59), p.gpu_percent];
+      pushRing(networkHistory, p.network);
+      pushRing(cpuHistory, p.cpu_percent);
+      pushRing(memoryHistory, p.memory_percent);
+      pushRing(gpuHistory, p.gpu_percent);
     });
   });
 
