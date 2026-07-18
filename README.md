@@ -1,103 +1,84 @@
+<div align="center">
+
+<img src="src-tauri/icons/128x128.png" alt="netmon icon" width="96">
+
 # netmon
 
-**netmon** is a lightweight macOS menu bar app that shows network, CPU, RAM, and (on Apple Silicon) GPU utilization in real time. Click the tray icon to open a dashboard with 60-second history charts.
+**A lightweight macOS menu bar app for real-time network, CPU, RAM & GPU monitoring.**
 
-## Features
+[![Release](https://img.shields.io/github/v/release/j3ffwin5tonone/netmon?label=release)](https://github.com/j3ffwin5tonone/netmon/releases)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black?logo=apple)](https://github.com/j3ffwin5tonone/netmon/releases)
+[![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?logo=tauri&logoColor=white)](https://tauri.app)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](package.json)
 
-- **Menu bar** — live values in the tray title (download/upload, CPU, RAM, optional GPU)
-- **Network** — download and upload speed in MB/s or KB/s
-- **CPU** — overall utilization across all cores
-- **Memory** — used percentage and absolute bytes
-- **GPU** — graphics core utilization on Apple Silicon (IOReport, no `sudo`)
-- **Dashboard** — SVG charts with a 60-second history, updated every second
+*Live metrics in your menu bar — click for a full dashboard with 60-second history.*
 
-## Requirements
+<!-- Screenshot: replace with a real capture of the dashboard window -->
+<img src="docs/screenshot-dashboard.png" alt="netmon dashboard" width="720">
 
-| Tool | Version |
-|------|---------|
-| [Node.js](https://nodejs.org/) | 18+ recommended |
-| [Rust](https://www.rust-lang.org/tools/install) | stable (via `rustup`) |
-| macOS | primary target; GPU metrics only on **Apple Silicon** (`aarch64`) |
+</div>
 
-For development:
+---
 
-- Xcode Command Line Tools (`xcode-select --install`)
-- Optional: [VS Code](https://code.visualstudio.com/) with [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode), [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode), and [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Highlights
 
-## Installation & development
+- **Menu bar first** — download/upload, CPU, RAM and GPU live in your tray title:
+  `↓ 12.3 MB/s ↑ 1.2 MB/s · CPU 23% · RAM 67% · GPU 15%`
+- **One-click dashboard** — four clean cards with 60-second history charts, updated every second
+- **GPU on Apple Silicon** — graphics utilization via IOReport, **no `sudo` required**
+- **Tiny footprint** — native Rust backend (Tauri 2), no Electron
+- **Free & open source** — MIT licensed
 
-```bash
-git clone https://github.com/j3ffwin5tonone/netmon.git
-cd netmon
-npm install
-npm run tauri dev
-```
+## Install
 
-The first run compiles all Rust backend dependencies; this may take a few minutes.
+Grab the latest `.dmg` from the **[Releases page](https://github.com/j3ffwin5tonone/netmon/releases)**, drag `netmon.app` to Applications, launch — the icon appears in your menu bar.
 
-## Release build
-
-```bash
-npm run tauri build
-```
-
-The `.app` bundle is written to `src-tauri/target/release/bundle/macos/`.
+> **Note:** GPU metrics are available on Apple Silicon only. On Intel Macs the GPU card shows "n/a"; everything else works normally.
 
 ## Usage
 
-1. After launch, a tray icon appears in the menu bar.
-2. The title shows current metrics, e.g.  
-   `↓ 12.3 MB/s ↑ 1.2 MB/s · CPU 23% · RAM 67% · GPU 15%`
-3. **Left-click** the icon to open the dashboard window.
-4. **Right-click** (or use the tray menu) → **Quit** to exit.
-
-The main window starts hidden (`visible: false` in the Tauri config) and is opened only from the tray.
+| Action | Result |
+|--------|--------|
+| **Left-click** tray icon | Open the dashboard window |
+| **Right-click** tray icon | Menu → Quit |
 
 ## Metrics
 
 | Metric | Source | Notes |
 |--------|--------|-------|
 | Network | [`sysinfo`](https://crates.io/crates/sysinfo) | Per-interface byte delta per second |
-| CPU | `sysinfo` | Global CPU usage |
+| CPU | `sysinfo` | Global usage across all cores |
 | RAM | `sysinfo` | Used vs. total memory |
-| GPU | [`macmon`](https://crates.io/crates/macmon) | `aarch64-apple-darwin` only; usage relative to max GPU frequency (IOReport) |
+| GPU | [`macmon`](https://github.com/vladkens/macmon) | Apple Silicon, IOReport (relative to max GPU frequency) |
 
-On Intel Macs and non-macOS builds, `gpu_supported` is false; the dashboard shows “GPU — n/v”.
+## Building from source
+
+Requirements: [Node.js](https://nodejs.org/) 18+, [Rust](https://rustup.rs) (stable), Xcode Command Line Tools.
+
+```bash
+git clone https://github.com/j3ffwin5tonone/netmon.git
+cd netmon
+npm install
+npm run tauri dev      # development
+npm run tauri build    # release build → src-tauri/target/release/bundle/macos/
+```
 
 ## Architecture
 
 ```
 netmon/
-├── src/                    # SvelteKit frontend (dashboard, charts)
-│   └── lib/
-│       ├── metrics.ts      # TypeScript types (mirror of Rust backend)
-│       └── components/     # NetworkChart, CpuChart, GpuChart, MemoryChart
-└── src-tauri/              # Tauri 2 / Rust backend
-    └── src/
-        ├── lib.rs          # tray, event loop, Tauri commands
-        └── metrics/        # cpu, memory, network, gpu
+├── src/                 # SvelteKit frontend (dashboard, charts)
+│   └── lib/components/  # NetworkChart, CpuChart, GpuChart, MemoryChart
+└── src-tauri/           # Tauri 2 / Rust backend
+    └── src/metrics/     # cpu, memory, network, gpu collectors
 ```
 
-- The backend collects a [`MetricsSnapshot`](src-tauri/src/metrics/mod.rs) every second and emits it to the frontend via the Tauri `metrics-update` event.
-- GPU sampling runs on a dedicated thread (`macmon::Sampler` is not `Send`); the UI communicates with it over a channel.
-- History: ring buffer of 60 entries (`HISTORY_LEN`).
-
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Vite frontend only (port 1420) |
-| `npm run tauri dev` | Run the app in development mode |
-| `npm run tauri build` | Production build |
-| `npm run check` | Svelte / TypeScript check |
-
-## License
-
-MIT — see [`package.json`](package.json).
+The backend collects a `MetricsSnapshot` every second and emits it to the frontend via the `metrics-update` event. History is a 60-entry ring buffer; GPU sampling runs on a dedicated thread.
 
 ## Acknowledgments
 
-- [Tauri](https://tauri.app/) — desktop shell
-- [SvelteKit](https://kit.svelte.dev/) — UI
-- [sysinfo](https://crates.io/crates/sysinfo) — system metrics
-- [macmon](https://github.com/vladkens/macmon) — Apple Silicon GPU / IOReport (vladkens)
+[Tauri](https://tauri.app) · [SvelteKit](https://kit.svelte.dev) · [sysinfo](https://crates.io/crates/sysinfo) · [macmon](https://github.com/vladkens/macmon)
+
+## License
+
+MIT
