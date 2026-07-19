@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** IOReport / Apple Silicon — false on Intel Macs and non-macOS builds */
+  /** Platform GPU sampler — false on Intel Macs / when PDH or IOReport is unavailable */
   let {
     history,
     current,
@@ -50,11 +50,11 @@
       {/if}
     </svg>
   {:else}
-    <div class="unsupported">GPU metrics require Apple Silicon</div>
+    <div class="unsupported">GPU metrics unavailable on this device</div>
   {/if}
 
   <div class="card-footer">
-    <span>Apple Silicon · IOReport</span>
+    <span>GPU utilization</span>
     {#if supported}
       <span>Peak {peak.toFixed(0)}%</span>
     {/if}

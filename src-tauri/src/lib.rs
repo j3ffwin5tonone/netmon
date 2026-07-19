@@ -1,6 +1,6 @@
 mod metrics;
 
-use metrics::{format_speed, AppState, MetricsHistory};
+use metrics::{format_speed, AppState, MetricsHistory, MetricsSnapshot};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
@@ -10,6 +10,27 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 #[tauri::command]
 fn get_metrics_history(state: State<'_, Mutex<AppState>>) -> MetricsHistory {
     state.lock().unwrap().history_snapshot()
+}
+
+fn format_tray_text(snapshot: &MetricsSnapshot) -> String {
+    if snapshot.gpu_supported {
+        format!(
+            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}% · GPU {:.0}%",
+            format_speed(snapshot.network.down),
+            format_speed(snapshot.network.up),
+            snapshot.cpu_percent,
+            snapshot.memory_percent,
+            snapshot.gpu_percent
+        )
+    } else {
+        format!(
+            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
+            format_speed(snapshot.network.down),
+            format_speed(snapshot.network.up),
+            snapshot.cpu_percent,
+            snapshot.memory_percent
+        )
+    }
 }
 
 pub fn run() {
@@ -35,11 +56,22 @@ pub fn run() {
             }
 
             let vis_for_tray = Arc::clone(&window_visible);
-            let _tray = TrayIconBuilder::with_id("netmon-tray")
+            let mut tray_builder = TrayIconBuilder::with_id("netmon-tray")
                 .menu(&menu)
-                .tooltip("Network Monitor")
-                .title("↓ 0.0 ↑ 0.0")
-                .show_menu_on_left_click(false)
+                .tooltip("↓ 0.0 ↑ 0.0 · CPU 0% · RAM 0%")
+                .show_menu_on_left_click(false);
+
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+
+            // Live tray title text is macOS (and partially Linux) only; Windows ignores it.
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            {
+                tray_builder = tray_builder.title("↓ 0.0 ↑ 0.0");
+            }
+
+            let _tray = tray_builder
                 .on_menu_event(|app, event| {
                     if event.id() == "quit" {
                         app.exit(0);
@@ -76,25 +108,17 @@ pub fn run() {
                     };
 
                     if let Some(tray) = handle.tray_by_id("netmon-tray") {
-                        let title = if snapshot.gpu_supported {
-                            format!(
-                                "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}% · GPU {:.0}%",
-                                format_speed(snapshot.network.down),
-                                format_speed(snapshot.network.up),
-                                snapshot.cpu_percent,
-                                snapshot.memory_percent,
-                                snapshot.gpu_percent
-                            )
-                        } else {
-                            format!(
-                                "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
-                                format_speed(snapshot.network.down),
-                                format_speed(snapshot.network.up),
-                                snapshot.cpu_percent,
-                                snapshot.memory_percent
-                            )
-                        };
-                        let _ = tray.set_title(Some(&title));
+                        let text = format_tray_text(&snapshot);
+                        // Windows: title unsupported — keep metrics in the hover tooltip.
+                        // macOS/Linux: title is the primary live display.
+                        #[cfg(any(target_os = "macos", target_os = "linux"))]
+                        {
+                            let _ = tray.set_title(Some(&text));
+                        }
+                        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                        {
+                            let _ = tray.set_tooltip(Some(&text));
+                        }
                     }
 
                     if vis_for_loop.load(Ordering::Relaxed) {

@@ -2,6 +2,15 @@ use super::{SpeedEntry, HISTORY_LEN};
 use std::collections::VecDeque;
 use sysinfo::Networks;
 
+/// Unix `lo` / `lo0`, Windows `Loopback Pseudo-Interface *`, etc.
+/// Avoids a bare `starts_with("lo")`, which would drop "Local Area Connection" on Windows.
+fn is_loopback_interface(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n == "lo"
+        || (n.starts_with("lo") && n.chars().nth(2).is_some_and(|c| c.is_ascii_digit()))
+        || n.contains("loopback")
+}
+
 pub struct NetworkMetrics {
     networks: Networks,
     history: VecDeque<SpeedEntry>,
@@ -23,7 +32,7 @@ impl NetworkMetrics {
 
         let (mut down, mut up) = (0u64, 0u64);
         for (name, data) in self.networks.iter() {
-            if !name.starts_with("lo") {
+            if !is_loopback_interface(name) {
                 down += data.received();
                 up += data.transmitted();
             }

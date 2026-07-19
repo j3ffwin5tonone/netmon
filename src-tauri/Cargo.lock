@@ -2286,6 +2286,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-shell",
  "tokio",
+ "windows 0.61.3",
 ]
 
 [[package]]
