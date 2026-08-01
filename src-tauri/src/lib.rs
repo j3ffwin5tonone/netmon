@@ -110,10 +110,15 @@ pub fn run() {
                     if let Some(tray) = handle.tray_by_id("netmon-tray") {
                         let text = format_tray_text(&snapshot);
                         // Windows: title unsupported — keep metrics in the hover tooltip.
-                        // macOS/Linux: title is the primary live display.
+                        // macOS: title is the primary live display.
+                        // Linux: title works on some DEs; always refresh tooltip as fallback.
                         #[cfg(any(target_os = "macos", target_os = "linux"))]
                         {
                             let _ = tray.set_title(Some(&text));
+                        }
+                        #[cfg(target_os = "linux")]
+                        {
+                            let _ = tray.set_tooltip(Some(&text));
                         }
                         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
                         {
