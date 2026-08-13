@@ -1,7 +1,7 @@
 [package]
 name = "netmon"
-version = "0.1.0"
-description = "Network Monitor Menu Bar App"
+version = "0.2.0"
+description = "Network Monitor Tray App"
 authors = ["Andreas"]
 edition = "2021"
 
