@@ -9,38 +9,26 @@ use super::HISTORY_LEN;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
-#[cfg(any(
-    all(target_os = "macos", target_arch = "aarch64"),
-    windows
-))]
+#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), windows))]
 use std::time::Duration;
 
 /// Discard `get_metrics_now` baselines older than this (slightly above the 1s sample cadence).
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const STALE_AFTER_MS: u32 = 2_000;
 
-#[cfg(any(
-    all(target_os = "macos", target_arch = "aarch64"),
-    windows
-))]
+#[cfg(any(all(target_os = "macos", target_arch = "aarch64"), windows))]
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Shared flag + last GPU % (f32 bits) so `measure()` never blocks on the sampler.
 struct GpuControl {
     supported: Arc<AtomicBool>,
     last_bits: Arc<AtomicU32>,
-    #[cfg(any(
-        all(target_os = "macos", target_arch = "aarch64"),
-        windows
-    ))]
+    #[cfg(any(all(target_os = "macos", target_arch = "aarch64"), windows))]
     _join: std::thread::JoinHandle<()>,
 }
 
 impl GpuControl {
-    #[cfg(not(any(
-        all(target_os = "macos", target_arch = "aarch64"),
-        windows
-    )))]
+    #[cfg(not(any(all(target_os = "macos", target_arch = "aarch64"), windows)))]
     fn new_stub() -> Self {
         Self {
             supported: Arc::new(AtomicBool::new(false)),
@@ -140,20 +128,14 @@ pub struct GpuMetrics {
 
 impl GpuMetrics {
     pub fn new() -> Self {
-        #[cfg(any(
-            all(target_os = "macos", target_arch = "aarch64"),
-            windows
-        ))]
+        #[cfg(any(all(target_os = "macos", target_arch = "aarch64"), windows))]
         {
             Self {
                 history: VecDeque::with_capacity(HISTORY_LEN),
                 control: GpuControl::new_worker(),
             }
         }
-        #[cfg(not(any(
-            all(target_os = "macos", target_arch = "aarch64"),
-            windows
-        )))]
+        #[cfg(not(any(all(target_os = "macos", target_arch = "aarch64"), windows)))]
         {
             Self {
                 history: VecDeque::with_capacity(HISTORY_LEN),
@@ -252,9 +234,7 @@ mod windows_gpu {
     }
 
     /// Per-adapter max over engines, then max across adapters (engines run in parallel).
-    pub(super) fn aggregate_gpu_percent<'a>(
-        items: impl Iterator<Item = (&'a str, f64)>,
-    ) -> f32 {
+    pub(super) fn aggregate_gpu_percent<'a>(items: impl Iterator<Item = (&'a str, f64)>) -> f32 {
         let mut per_adapter: HashMap<&str, f64> = HashMap::new();
         for (name, value) in items {
             if !value.is_finite() || value < 0.0 {
@@ -329,26 +309,16 @@ mod windows_gpu {
 
         #[test]
         fn luid_key_extracts_adapter() {
-            let name =
-                "pid_1234_luid_0x00000000_0x00012AB3_phys_0_eng_0_engtype_3D";
+            let name = "pid_1234_luid_0x00000000_0x00012AB3_phys_0_eng_0_engtype_3D";
             assert_eq!(luid_key(name), "luid_0x00000000_0x00012AB3");
         }
 
         #[test]
         fn aggregate_takes_max_per_adapter_then_max_adapters() {
             let items = [
-                (
-                    "pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D",
-                    40.0,
-                ),
-                (
-                    "pid_2_luid_0x0_0xA_phys_0_eng_1_engtype_Copy",
-                    10.0,
-                ),
-                (
-                    "pid_3_luid_0x0_0xB_phys_0_eng_0_engtype_3D",
-                    70.0,
-                ),
+                ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 40.0),
+                ("pid_2_luid_0x0_0xA_phys_0_eng_1_engtype_Copy", 10.0),
+                ("pid_3_luid_0x0_0xB_phys_0_eng_0_engtype_3D", 70.0),
             ];
             let pct = aggregate_gpu_percent(items.iter().map(|(n, v)| (*n, *v)));
             assert!((pct - 70.0).abs() < f32::EPSILON);
