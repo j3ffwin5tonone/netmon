@@ -1,6 +1,6 @@
 mod metrics;
 
-use metrics::{format_speed, AppState, MetricsHistory, MetricsSnapshot};
+use metrics::{format_tray_title, format_tray_tooltip, AppState, MetricsHistory};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
@@ -9,27 +9,18 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 #[tauri::command]
 fn get_metrics_history(state: State<'_, Mutex<AppState>>) -> MetricsHistory {
-    state.lock().unwrap().history_snapshot()
+    state
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .history_snapshot()
 }
 
-fn format_tray_text(snapshot: &MetricsSnapshot) -> String {
-    if snapshot.gpu_supported {
-        format!(
-            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}% · GPU {:.0}%",
-            format_speed(snapshot.network.down),
-            format_speed(snapshot.network.up),
-            snapshot.cpu_percent,
-            snapshot.memory_percent,
-            snapshot.gpu_percent
-        )
-    } else {
-        format!(
-            "↓ {} ↑ {} · CPU {:.0}% · RAM {:.0}%",
-            format_speed(snapshot.network.down),
-            format_speed(snapshot.network.up),
-            snapshot.cpu_percent,
-            snapshot.memory_percent
-        )
+fn show_dashboard(app: &AppHandle, window_visible: &AtomicBool) {
+    if let Some(win) = app.get_webview_window("main") {
+        window_visible.store(true, Ordering::Relaxed);
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
     }
 }
 
@@ -38,6 +29,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(Mutex::new(AppState::new()))
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit])?;
 
@@ -58,7 +52,7 @@ pub fn run() {
             let vis_for_tray = Arc::clone(&window_visible);
             let mut tray_builder = TrayIconBuilder::with_id("netmon-tray")
                 .menu(&menu)
-                .tooltip("↓ 0.0 ↑ 0.0 · CPU 0% · RAM 0%")
+                .tooltip("Network Monitor")
                 .show_menu_on_left_click(false);
 
             if let Some(icon) = app.default_window_icon() {
@@ -68,7 +62,7 @@ pub fn run() {
             // Live tray title text is macOS (and partially Linux) only; Windows ignores it.
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             {
-                tray_builder = tray_builder.title("↓ 0.0 ↑ 0.0");
+                tray_builder = tray_builder.title("↓  0B ↑  0B   0%   0%");
             }
 
             let _tray = tray_builder
@@ -84,12 +78,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(win) = app.get_webview_window("main") {
-                            vis_for_tray.store(true, Ordering::Relaxed);
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
+                        show_dashboard(tray.app_handle(), &vis_for_tray);
                     }
                 })
                 .build(app)?;
@@ -97,32 +86,28 @@ pub fn run() {
             let handle: AppHandle = app.handle().clone();
             let vis_for_loop = Arc::clone(&window_visible);
             tauri::async_runtime::spawn(async move {
+                let mut last_title = String::new();
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
                     // Mutex only covers sysinfo refreshes + history; GPU is lock-free last-value.
                     let snapshot = {
                         let state = handle.state::<Mutex<AppState>>();
-                        let mut s = state.lock().unwrap();
+                        let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
                         s.tick()
                     };
 
                     if let Some(tray) = handle.tray_by_id("netmon-tray") {
-                        let text = format_tray_text(&snapshot);
-                        // Windows: title unsupported — keep metrics in the hover tooltip.
-                        // macOS: title is the primary live display.
-                        // Linux: title works on some DEs; always refresh tooltip as fallback.
-                        #[cfg(any(target_os = "macos", target_os = "linux"))]
-                        {
-                            let _ = tray.set_title(Some(&text));
-                        }
-                        #[cfg(target_os = "linux")]
-                        {
-                            let _ = tray.set_tooltip(Some(&text));
-                        }
-                        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-                        {
-                            let _ = tray.set_tooltip(Some(&text));
+                        let title = format_tray_title(&snapshot);
+                        // Skip AppKit setTitle when unchanged — width churn is what macOS
+                        // uses to cull status items from a crowded menu bar.
+                        if title != last_title {
+                            #[cfg(any(target_os = "macos", target_os = "linux"))]
+                            {
+                                let _ = tray.set_title(Some(&title));
+                            }
+                            let _ = tray.set_tooltip(Some(format_tray_tooltip(&snapshot)));
+                            last_title = title;
                         }
                     }
 
