@@ -166,7 +166,14 @@ pub fn format_tray_tooltip(snapshot: &MetricsSnapshot) -> String {
 mod tests {
     use super::*;
 
-    fn snapshot(down: f64, up: f64, cpu: f32, ram: f32, gpu: f32, gpu_supported: bool) -> MetricsSnapshot {
+    fn snapshot(
+        down: f64,
+        up: f64,
+        cpu: f32,
+        ram: f32,
+        gpu: f32,
+        gpu_supported: bool,
+    ) -> MetricsSnapshot {
         MetricsSnapshot {
             network: SpeedEntry { down, up },
             cpu_percent: cpu,
@@ -183,8 +190,22 @@ mod tests {
     #[test]
     fn compact_speed_is_four_chars() {
         for mb in [
-            0.0, 0.0004, 0.001, 0.01, 0.5, 1.0, 9.9, 9.96, 10.0, 99.4, 99.6, 100.0, 999.0,
-            1024.0, 2048.0, 999.5 / 1024.0,
+            0.0,
+            0.0004,
+            0.001,
+            0.01,
+            0.5,
+            1.0,
+            9.9,
+            9.96,
+            10.0,
+            99.4,
+            99.6,
+            100.0,
+            999.0,
+            1024.0,
+            2048.0,
+            999.5 / 1024.0,
         ] {
             let s = format_speed_compact(mb);
             assert_eq!(s.chars().count(), 4, "{mb} -> {s:?}");
