@@ -1,0 +1,7 @@
+# Lockfile hashes must be identical on every checkout platform.
+/package-lock.json text eol=lf
+/src-tauri/Cargo.lock text eol=lf
+
+# Keep original upstream license texts and source archives byte-for-byte.
+/licenses/texts/** -text
+/static/legal-sources/** -text

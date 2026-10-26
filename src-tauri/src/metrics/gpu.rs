@@ -253,9 +253,26 @@ fn pdh_value_is_valid(status: u32) -> bool {
     matches!(status, 0 | 1) // PDH_CSTATUS_VALID_DATA / PDH_CSTATUS_NEW_DATA
 }
 
+/// The size-only PDH probe guarantees the byte count, not an item count.
+/// Only an explicitly successful empty result can be treated as idle.
+#[cfg(any(windows, test))]
+fn pdh_buffer_units(status: u32, bytes: u32, item_size: usize) -> Option<usize> {
+    const MORE_DATA: u32 = 0x8000_07d2; // PDH_MORE_DATA
+    if (status != 0 && status != MORE_DATA) || bytes > 16 * 1024 * 1024 {
+        return None;
+    }
+    if bytes == 0 {
+        return (status == 0).then_some(0);
+    }
+    Some((bytes as usize).div_ceil(item_size))
+}
+
 #[cfg(windows)]
 mod windows_gpu {
-    use super::{aggregate_gpu_percent, pdh_value_is_valid, AtomicBool, Ordering, SAMPLE_INTERVAL};
+    use super::{
+        aggregate_gpu_percent, pdh_buffer_units, pdh_value_is_valid, AtomicBool, Ordering,
+        SAMPLE_INTERVAL,
+    };
     use std::mem::{size_of, MaybeUninit};
     use std::time::SystemTime;
     use windows::{
@@ -336,17 +353,11 @@ mod windows_gpu {
             let status = unsafe {
                 PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &mut bytes, &mut count, None)
             };
-            if status != PDH_MORE_DATA && status != 0 {
-                return None;
-            }
-            if bytes == 0 || count == 0 {
+            let units = pdh_buffer_units(status, bytes, size_of::<PDH_FMT_COUNTERVALUE_ITEM_W>())?;
+            if units == 0 {
                 return Some(0.0);
             }
-            // Keep an unexpected provider response from allocating unbounded memory.
-            if bytes > 16 * 1024 * 1024 {
-                return None;
-            }
-            let units = (bytes as usize).div_ceil(size_of::<PDH_FMT_COUNTERVALUE_ITEM_W>());
+            // `count` is meaningful after the fill succeeds, not the size-only probe.
             // This allocation has the alignment of the PDH structs, unlike Vec<u8>.
             let mut buffer = vec![MaybeUninit::<PDH_FMT_COUNTERVALUE_ITEM_W>::zeroed(); units];
             let capacity = units * size_of::<PDH_FMT_COUNTERVALUE_ITEM_W>();
@@ -506,6 +517,21 @@ mod tests {
         assert!(pdh_value_is_valid(0));
         assert!(pdh_value_is_valid(1));
         assert!(!pdh_value_is_valid(0x800007D5));
+    }
+
+    #[test]
+    fn pdh_size_probe_requires_a_fill_even_without_an_item_count() {
+        // A PDH_MORE_DATA probe only promises the required bytes; the item
+        // count may remain zero until the allocated buffer is filled.
+        assert_eq!(pdh_buffer_units(0x8000_07d2, 49, 24), Some(3));
+        assert_eq!(pdh_buffer_units(0, 49, 24), Some(3));
+        assert_eq!(pdh_buffer_units(0, 0, 24), Some(0));
+        assert_eq!(pdh_buffer_units(0x8000_07d2, 0, 24), None);
+        assert_eq!(pdh_buffer_units(0x8000_07d5, 49, 24), None);
+        assert_eq!(
+            pdh_buffer_units(0x8000_07d2, 16 * 1024 * 1024 + 1, 24),
+            None
+        );
     }
 
     #[cfg(any(all(target_os = "macos", target_arch = "aarch64"), windows))]
