@@ -68,6 +68,8 @@ h1 {{ font-size: 26px; margin-bottom: 0; }} h2 {{ font-size: 20px; margin-top: 3
 h3 {{ font-size: 16px; }} nav {{ display: flex; flex-wrap: wrap; gap: 16px; margin: 24px 0; }}
 a {{ color: LinkText; }} pre, code {{ white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }}
 details {{ border-top: 1px solid GrayText; padding: 10px 0; }} summary {{ cursor: pointer; font-weight: 600; }}
+.support {{ display: inline-block; padding: 10px 16px; border: 1px solid currentColor; border-radius: 8px; font-weight: 600; text-decoration: none; }}
+.support:hover {{ text-decoration: underline; }} .support:focus-visible {{ outline: 2px solid currentColor; outline-offset: 4px; }}
 .meta {{ font-size: 13px; }} .source {{ display: block; user-select: text; }}
 @media (max-width: 420px) {{ body {{ padding: 14px; }} }}
 @media print {{ details > * {{ display: block !important; }} }}
@@ -77,6 +79,8 @@ details {{ border-top: 1px solid GrayText; padding: 10px 0; }} summary {{ cursor
 <p>netmon's original code and artwork are licensed under the MIT License.
 Third-party components retain their own licenses and notices below.</p>
 <p class="meta">Project: <code class="source">https://github.com/j3ffwin5tonone/netmon</code></p>
+<p><a class="support" href="https://paypal.me/adSoftware1" rel="noreferrer">🍺 Buy the developer a beer</a></p>
+<p class="meta">Optional tip via PayPal. Opens in your default browser.<br><code class="source">https://paypal.me/adSoftware1</code></p>
 <nav aria-label="License sections"><a href="#netmon">netmon license</a><a href="#dependencies">Third-party notices</a><a href="#sources">MPL sources</a><a href="#terms">Standard license texts</a></nav>
 <h2 id="netmon">netmon — MIT License</h2><pre>{escape((ROOT / 'LICENSE').read_text())}</pre>
 <h2 id="dependencies">Third-party notices</h2>

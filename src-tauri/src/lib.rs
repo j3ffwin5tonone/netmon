@@ -6,6 +6,15 @@ use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_shell::ShellExt;
+
+const BEER_URL: &str = "https://paypal.me/adSoftware1";
+
+fn is_about_document(url: &tauri::Url, document: &tauri::Url) -> bool {
+    let mut target = url.clone();
+    target.set_fragment(None);
+    &target == document
+}
 
 #[tauri::command]
 fn get_metrics_history(state: State<'_, Mutex<AppState>>) -> MetricsHistory {
@@ -34,6 +43,20 @@ pub fn run() {
 
             // Build during setup, not inside a synchronous menu handler (WebView2).
             // The offline notices need neither JavaScript nor IPC capabilities.
+            // Resolve before page load; querying the main webview can still return about:blank.
+            let bundled_origin = if cfg!(target_os = "windows") {
+                "http://tauri.localhost"
+            } else {
+                "tauri://localhost"
+            };
+            let base_url = if tauri::is_dev() {
+                app.config().build.dev_url.clone()
+            } else {
+                None
+            }
+            .unwrap_or(tauri::Url::parse(bundled_origin)?);
+            let about_document = base_url.join("licenses.html")?;
+            let browser_app = app.handle().clone();
             let about_window =
                 WebviewWindowBuilder::new(app, "about", WebviewUrl::App("licenses.html".into()))
                     .title("About netmon & Licenses")
@@ -41,6 +64,21 @@ pub fn run() {
                     .min_inner_size(360.0, 300.0)
                     .visible(false)
                     .disable_javascript()
+                    .on_navigation(move |url| {
+                        if url.as_str() == BEER_URL {
+                            let app = browser_app.clone();
+                            tauri::async_runtime::spawn_blocking(move || {
+                                // Reuse the installed shell plugin; only this fixed URL is opened.
+                                #[allow(deprecated)]
+                                if let Err(error) = app.shell().open(BEER_URL, None) {
+                                    eprintln!("Could not open the PayPal link: {error}");
+                                }
+                            });
+                            return false;
+                        }
+                        // Keep license anchors working and reject all other navigation.
+                        is_about_document(url, &about_document)
+                    })
                     .build()?;
             let hide_about = about_window.clone();
             about_window.on_window_event(move |event| {
@@ -148,4 +186,40 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_metrics_history])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod about_tests {
+    use super::{is_about_document, BEER_URL};
+
+    #[test]
+    fn about_navigation_keeps_the_local_document_and_anchors() {
+        for base in [
+            "tauri://localhost/licenses.html",
+            "http://tauri.localhost/licenses.html",
+            "http://localhost:1420/licenses.html",
+        ] {
+            let document = tauri::Url::parse(base).unwrap();
+            assert!(is_about_document(&document, &document));
+            assert!(is_about_document(
+                &document.join("#dependencies").unwrap(),
+                &document
+            ));
+            for target in [
+                BEER_URL,
+                "https://example.com/licenses.html",
+                "https://paypal.me/adSoftware1?redirect=evil",
+                "file:///licenses.html",
+            ] {
+                assert!(!is_about_document(
+                    &tauri::Url::parse(target).unwrap(),
+                    &document
+                ));
+            }
+            assert!(!is_about_document(
+                &document.join("index.html").unwrap(),
+                &document
+            ));
+        }
+    }
 }
