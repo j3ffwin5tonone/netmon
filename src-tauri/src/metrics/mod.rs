@@ -1,19 +1,20 @@
-//! Aggregated system metrics for the UI and tray. Add new domains (memory, GPU, …) here
-//! as new fields on [`MetricsSnapshot`] / [`MetricsHistory`] and dedicated submodules.
-
+//! Timestamped, bounded system metrics shared by the tray and dashboard.
 mod cpu;
 mod gpu;
 mod memory;
 mod network;
 
 use serde::Serialize;
+use std::collections::VecDeque;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) const HISTORY_LEN: usize = 60;
+const HISTORY_MS: u64 = 60_000;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct SpeedEntry {
-    pub down: f64, // MB/s
-    pub up: f64,   // MB/s
+    pub down: f64, // MiB/s
+    pub up: f64,   // MiB/s
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -24,22 +25,41 @@ pub struct MemoryEntry {
 
 #[derive(Serialize, Clone, Debug)]
 pub struct MetricsSnapshot {
+    pub sequence: u64,
+    pub timestamp_ms: u64,
     pub network: SpeedEntry,
+    pub network_interface: Option<String>,
+    pub network_interfaces: Vec<String>,
     pub cpu_percent: f32,
     pub memory: MemoryEntry,
     pub memory_percent: f32,
-    /// GPU load 0–100 when `gpu_supported` is true (Apple Silicon + IOReport).
-    pub gpu_percent: f32,
-    pub gpu_supported: bool,
+    /// Active time / observation time; None when unavailable or stale.
+    pub gpu_percent: Option<f32>,
 }
 
 #[derive(Serialize, Clone, Debug)]
 pub struct MetricsHistory {
-    pub network: Vec<SpeedEntry>,
-    pub cpu: Vec<f32>,
-    pub memory: Vec<f32>,
-    pub gpu: Vec<f32>,
-    pub gpu_supported: bool,
+    pub samples: Vec<MetricsSnapshot>,
+    pub network_selection: Option<String>,
+}
+
+fn timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn retain_recent(history: &mut VecDeque<MetricsSnapshot>, now_ms: u64) {
+    while history
+        .front()
+        .is_some_and(|s| s.timestamp_ms <= now_ms.saturating_sub(HISTORY_MS))
+    {
+        history.pop_front();
+    }
+    while history.len() > HISTORY_LEN {
+        history.pop_front();
+    }
 }
 
 pub struct AppState {
@@ -47,6 +67,8 @@ pub struct AppState {
     cpu: cpu::CpuMetrics,
     memory: memory::MemoryMetrics,
     gpu: gpu::GpuMetrics,
+    history: VecDeque<MetricsSnapshot>,
+    sequence: u64,
 }
 
 impl AppState {
@@ -56,6 +78,8 @@ impl AppState {
             cpu: cpu::CpuMetrics::new(),
             memory: memory::MemoryMetrics::new(),
             gpu: gpu::GpuMetrics::new(),
+            history: VecDeque::with_capacity(HISTORY_LEN),
+            sequence: 0,
         }
     }
 
@@ -63,44 +87,62 @@ impl AppState {
         let network = self.network.measure();
         let cpu_percent = self.cpu.measure();
         let (used_bytes, total_bytes, memory_percent) = self.memory.measure();
-        let gpu_supported = self.gpu.supported();
-        let gpu_percent = self.gpu.measure();
-        MetricsSnapshot {
+        self.sequence = self.sequence.saturating_add(1);
+        let timestamp_ms = timestamp_ms();
+        // Wall-clock changes cannot cause a chart to connect samples in reverse time.
+        if self
+            .history
+            .back()
+            .is_some_and(|s| timestamp_ms <= s.timestamp_ms)
+        {
+            self.history.clear();
+        }
+        let snapshot = MetricsSnapshot {
+            sequence: self.sequence,
+            timestamp_ms,
             network,
+            network_interface: self.network.selected_interface(),
+            network_interfaces: self.network.interfaces(),
             cpu_percent,
             memory: MemoryEntry {
                 used_bytes,
                 total_bytes,
             },
             memory_percent,
-            gpu_percent,
-            gpu_supported,
+            gpu_percent: self.gpu.measure(),
+        };
+        self.history.push_back(snapshot.clone());
+        retain_recent(&mut self.history, timestamp_ms);
+        snapshot
+    }
+
+    pub fn history_snapshot(&mut self) -> MetricsHistory {
+        retain_recent(&mut self.history, timestamp_ms());
+        MetricsHistory {
+            samples: self.history.iter().cloned().collect(),
+            network_selection: self.network.selection(),
         }
     }
 
-    pub fn history_snapshot(&self) -> MetricsHistory {
-        MetricsHistory {
-            network: self.network.history().iter().cloned().collect(),
-            cpu: self.cpu.history().iter().copied().collect(),
-            memory: self.memory.history().iter().copied().collect(),
-            gpu: self.gpu.history().iter().copied().collect(),
-            gpu_supported: self.gpu.supported(),
-        }
+    pub fn set_network_interface(&mut self, name: Option<String>) -> Result<(), String> {
+        self.network.set_interface(name)
     }
 }
 
 pub fn format_speed(mb: f64) -> String {
-    if mb >= 1.0 {
-        format!("{:.1} MB/s", mb)
-    } else if mb >= 0.001 {
-        format!("{:.0} KB/s", mb * 1024.0)
-    } else {
+    if !mb.is_finite() || mb <= 0.0 {
         "0 B/s".to_string()
+    } else if mb >= 1.0 {
+        format!("{:.1} MiB/s", mb)
+    } else if mb >= 1.0 / 1024.0 {
+        format!("{:.0} KiB/s", mb * 1024.0)
+    } else {
+        format!("{:.0} B/s", mb * 1_048_576.0)
     }
 }
 
 /// Four-character speed for the menu bar so `NSStatusItem` width stays stable.
-/// Variable-width titles (`0 B/s` vs `999.9 MB/s`) get culled on crowded macOS menu bars.
+/// Variable-width titles (`0 B/s` vs `999.9 MiB/s`) get culled on crowded macOS menu bars.
 pub fn format_speed_compact(mb: f64) -> String {
     if !mb.is_finite() || mb < 0.0005 {
         return "  0B".to_string();
@@ -123,14 +165,22 @@ pub fn format_speed_compact(mb: f64) -> String {
 }
 
 pub fn format_tray_title(snapshot: &MetricsSnapshot) -> String {
-    let down = format_speed_compact(snapshot.network.down);
-    let up = format_speed_compact(snapshot.network.up);
-    if snapshot.gpu_supported {
+    let down = if snapshot.network_interface.is_some() {
+        format_speed_compact(snapshot.network.down)
+    } else {
+        " n/a".into()
+    };
+    let up = if snapshot.network_interface.is_some() {
+        format_speed_compact(snapshot.network.up)
+    } else {
+        " n/a".into()
+    };
+    if let Some(gpu_percent) = snapshot.gpu_percent {
         format!(
             "↓{down} ↑{up} {cpu:>3.0}% {ram:>3.0}% {gpu:>3.0}%",
             cpu = snapshot.cpu_percent.clamp(0.0, 100.0),
             ram = snapshot.memory_percent.clamp(0.0, 100.0),
-            gpu = snapshot.gpu_percent.clamp(0.0, 100.0),
+            gpu = gpu_percent.clamp(0.0, 100.0),
         )
     } else {
         format!(
@@ -142,51 +192,52 @@ pub fn format_tray_title(snapshot: &MetricsSnapshot) -> String {
 }
 
 pub fn format_tray_tooltip(snapshot: &MetricsSnapshot) -> String {
-    if snapshot.gpu_supported {
-        format!(
-            "↓ {} ↑ {}\nCPU {:.0}%  RAM {:.0}%  GPU {:.0}%",
+    let network = match &snapshot.network_interface {
+        Some(name) => format!(
+            "{name}: ↓ {} ↑ {}",
             format_speed(snapshot.network.down),
-            format_speed(snapshot.network.up),
-            snapshot.cpu_percent,
-            snapshot.memory_percent,
-            snapshot.gpu_percent
-        )
-    } else {
-        format!(
-            "↓ {} ↑ {}\nCPU {:.0}%  RAM {:.0}%",
-            format_speed(snapshot.network.down),
-            format_speed(snapshot.network.up),
-            snapshot.cpu_percent,
-            snapshot.memory_percent
-        )
+            format_speed(snapshot.network.up)
+        ),
+        None => "Network unavailable".into(),
+    };
+    let mut result = format!(
+        "{network}\nCPU {:.0}%  RAM {:.0}%",
+        snapshot.cpu_percent, snapshot.memory_percent
+    );
+    if let Some(gpu) = snapshot.gpu_percent {
+        result.push_str(&format!("  GPU {gpu:.0}%"));
     }
+    result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn snapshot(
-        down: f64,
-        up: f64,
-        cpu: f32,
-        ram: f32,
-        gpu: f32,
-        gpu_supported: bool,
-    ) -> MetricsSnapshot {
+    fn snapshot(t: u64) -> MetricsSnapshot {
         MetricsSnapshot {
-            network: SpeedEntry { down, up },
-            cpu_percent: cpu,
+            sequence: t,
+            timestamp_ms: t,
+            network: SpeedEntry { down: 0.0, up: 0.0 },
+            network_interface: Some("en0".into()),
+            network_interfaces: vec!["en0".into()],
+            cpu_percent: 10.0,
             memory: MemoryEntry {
-                used_bytes: 0,
-                total_bytes: 1,
+                used_bytes: 1,
+                total_bytes: 2,
             },
-            memory_percent: ram,
-            gpu_percent: gpu,
-            gpu_supported,
+            memory_percent: 50.0,
+            gpu_percent: Some(30.0),
         }
     }
-
+    #[test]
+    fn history_expires_by_time_and_count() {
+        let mut history: VecDeque<_> = (1..=80).map(|i| snapshot(i * 1000)).collect();
+        retain_recent(&mut history, 80_000);
+        assert_eq!(history.len(), 60);
+        assert_eq!(history.front().unwrap().timestamp_ms, 21_000);
+        retain_recent(&mut history, 180_000);
+        assert!(history.is_empty());
+    }
     #[test]
     fn compact_speed_is_four_chars() {
         for mb in [
@@ -207,16 +258,16 @@ mod tests {
             2048.0,
             999.5 / 1024.0,
         ] {
-            let s = format_speed_compact(mb);
-            assert_eq!(s.chars().count(), 4, "{mb} -> {s:?}");
+            assert_eq!(format_speed_compact(mb).chars().count(), 4, "{mb}");
         }
     }
-
     #[test]
-    fn tray_title_width_is_stable() {
-        let idle = format_tray_title(&snapshot(0.0, 0.0, 0.0, 0.0, 0.0, true));
-        let busy = format_tray_title(&snapshot(125.4, 12.2, 100.0, 99.0, 87.0, true));
-        assert_eq!(idle.chars().count(), busy.chars().count());
-        assert!(idle.chars().count() <= 28, "{idle}");
+    fn tooltip_uses_binary_units_and_omits_stale_gpu() {
+        assert_eq!(format_speed(1.0), "1.0 MiB/s");
+        assert_eq!(format_speed(0.5), "512 KiB/s");
+        assert_eq!(format_speed(512.0 / 1_048_576.0), "512 B/s");
+        let mut s = snapshot(1);
+        s.gpu_percent = None;
+        assert!(!format_tray_tooltip(&s).contains("GPU"));
     }
 }

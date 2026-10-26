@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "codex/**"]
   pull_request:
   workflow_dispatch:
 
@@ -47,6 +47,9 @@ jobs:
 
       - name: Typecheck
         run: npm run check
+
+      - name: Dashboard regression tests
+        run: npm test
 
       - name: Production build
         run: npm run build

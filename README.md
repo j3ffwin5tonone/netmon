@@ -54,7 +54,8 @@ The installer uses the **system WebView2** runtime (downloaded at install time i
 | Action | Result |
 |--------|--------|
 | **Left-click** tray icon | Open the dashboard window |
-| **Right-click** tray icon | Menu → Quit |
+| **Right-click → Open Dashboard** | Open or restore the dashboard |
+| **Right-click → Quit** | Exit netmon |
 | **Right-click → About & Licenses** | Version, copyright, offline license texts and source availability |
 | **Hover** tray icon | Show full units (macOS / Linux) or live metrics (Windows) |
 
@@ -62,10 +63,10 @@ The installer uses the **system WebView2** runtime (downloaded at install time i
 
 | Metric | Source | Notes |
 |--------|--------|-------|
-| Network | [`sysinfo`](https://crates.io/crates/sysinfo) | Per-interface byte delta per second (loopback excluded) |
+| Network | [`sysinfo`](https://crates.io/crates/sysinfo) | One selected adapter; byte delta divided by actual elapsed time (loopback excluded) |
 | CPU | `sysinfo` | Global usage across all cores |
 | RAM | `sysinfo` | Used vs. total memory |
-| GPU | [`macmon`](https://github.com/vladkens/macmon) / PDH | Apple Silicon: IOReport; Windows: `\GPU Engine(*)\Utilization Percentage` (Task Manager) |
+| GPU | [`macmon`](https://github.com/vladkens/macmon) / PDH | Apple Silicon: active residency (not clock-weighted); Windows: `\GPU Engine(*)\Utilization Percentage` (Task Manager) |
 
 ## Building from source
 
@@ -85,7 +86,7 @@ npm run tauri build    # release build
 Quality checks (same as [CI](.github/workflows/ci.yml)):
 
 ```bash
-npm run check && npm run build
+npm run check && npm test && npm run build
 cd src-tauri && cargo fmt --all -- --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked --all-targets
 ```
 
@@ -106,7 +107,13 @@ netmon/
     └── src/metrics/     # cpu, memory, network, gpu collectors
 ```
 
-The backend collects a `MetricsSnapshot` every second and emits it to the frontend via the `metrics-update` event. History is a 60-entry ring buffer; GPU sampling runs on a dedicated thread (Apple Silicon and Windows). The menu bar title uses a compact, fixed-width format so macOS does not cull the extra when the bar is full.
+The backend samples once per second. It retains timestamped snapshots from the last 60 seconds (at most 60 entries), and sends updates only while the dashboard is visible. Opening or restoring the dashboard reloads this history. Chart gaps indicate missing samples, sleep or an adapter change; averages use only available samples.
+
+Choose **Auto** or a specific adapter in the network card. Auto selects one active adapter and keeps it while idle, avoiding double-counting VPN tunnels and their physical connection. A manually selected adapter that disconnects is shown as unavailable until it returns. Rates use KiB/s and MiB/s; RAM uses GiB. The compact tray K/M/G suffixes use the same binary units.
+
+GPU sampling runs on a dedicated thread. Apple Silicon reads only GPU activity counters; Windows adds process counters per GPU engine and displays the busiest engine. Failed or stale readings show **n/a**. About & Licenses is loaded on demand and its WebView is released when closed. The menu bar title uses a compact, fixed-width format so macOS does not cull the extra when the bar is full.
+
+If a tray click is intercepted by the desktop, use **Right-click → Open Dashboard**. Reopening the app on macOS also brings up the dashboard; `netmon --dashboard` opens it on launch.
 
 ## Acknowledgments
 

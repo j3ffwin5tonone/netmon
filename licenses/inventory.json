@@ -98,8 +98,8 @@
     }
   },
   "lockfiles": {
-    "package-lock.json": "029bdca11b4cf7ca2afb8ec5a4efa46b49f8243986772be80255783bf72cee4e",
-    "src-tauri/Cargo.lock": "bb47b5b0276962c0c17ff54cad89434a686de37b5261e4871c6fafeb7762eafb"
+    "package-lock.json": "148a0980af5555326086a2c80c06ede7475b5ef3dac0eba306f428c05d63a643",
+    "src-tauri/Cargo.lock": "2808aee7d217c25b741245f45e06e1fa8df7127e7d2557b47b44e3a610c4a86a"
   },
   "schema": 1,
   "scope": "All locked Cargo and npm dependencies, including build tools and optional platforms. Not all are linked or shipped on each platform.",

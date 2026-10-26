@@ -2,7 +2,7 @@ name: Windows Build
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "codex/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -33,6 +33,13 @@ jobs:
 
       - name: License inventory and source archives
         run: npm run licenses:check
+
+      - name: Frontend regression tests
+        run: npm test
+
+      - name: Rust regression tests
+        run: cargo test --locked --lib
+        working-directory: src-tauri
 
       - name: Build Tauri app
         run: npm run tauri build

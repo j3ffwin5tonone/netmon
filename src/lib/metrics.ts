@@ -1,5 +1,4 @@
-/** Mirrors Rust `SpeedEntry` / snapshot fields — extend when adding GPU, etc. */
-
+/** Mirrors the Rust snapshot. Network rates use binary MiB/s. */
 export interface SpeedEntry {
   down: number;
   up: number;
@@ -11,19 +10,19 @@ export interface MemoryEntry {
 }
 
 export interface MetricsSnapshot {
+  sequence: number;
+  timestamp_ms: number;
   network: SpeedEntry;
+  network_interface: string | null;
+  network_interfaces: string[];
   cpu_percent: number;
   memory: MemoryEntry;
   memory_percent: number;
-  /** 0–100 when `gpu_supported` */
-  gpu_percent: number;
-  gpu_supported: boolean;
+  /** Active GPU time, 0–100; null when unsupported or stale. */
+  gpu_percent: number | null;
 }
 
 export interface MetricsHistory {
-  network: SpeedEntry[];
-  cpu: number[];
-  memory: number[];
-  gpu: number[];
-  gpu_supported: boolean;
+  samples: MetricsSnapshot[];
+  network_selection: string | null;
 }

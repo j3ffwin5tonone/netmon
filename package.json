@@ -1,6 +1,6 @@
 {
   "name": "netmon",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "",
   "type": "module",
   "scripts": {
@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "node --test scripts/test-dashboard.mjs"
   },
   "license": "MIT",
   "dependencies": {
