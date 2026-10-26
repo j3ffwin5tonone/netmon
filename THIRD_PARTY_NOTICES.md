@@ -26,8 +26,8 @@ tools' licenses do not automatically apply to their output.
 Where a dependency offers alternatives, netmon uses MIT where offered, otherwise
 Apache-2.0 where offered, otherwise CC0-1.0 or Unlicense where offered. Obligations
 joined by AND and additional notices must all be retained.
-For `tao-macros`, the Apache-2.0 alternative is explicitly selected and the parent
-Tao notice is retained; the selected alternative is recorded in the inventory.
+For `tao-macros`, the Apache-2.0 alternative is explicitly selected and its own
+upstream notices are retained; the selected alternative is recorded in the inventory.
 Original license texts are included even when an alternative is not selected. Authorship metadata is
 preserved as metadata; copyright holders or years are never invented.
 
@@ -55,9 +55,11 @@ Windows uses the system Evergreen WebView2 Runtime (downloaded by the installer
 if absent), not a bundled fixed-version Chromium runtime. The Microsoft loader
 distributed with the Rust bindings has separate Microsoft terms, in addition to
 the bindings' MIT license.
-`licenses/native.json` records the original SDK 1.0.3650.58 package, its BSD-3-Clause
+`licenses/native.json` records the original SDK 1.0.3800.47 package, its BSD-3-Clause
 license and NOTICE, and matching SHA-256 hashes for all three loader architectures.
-The collector verifies the loader bytes against Microsoft's versioned NuGet SDK.
+The collector identifies the SDK from the binding generator at the crate's exact
+published source commit and verifies the loader bytes against Microsoft's
+versioned NuGet SDK.
 
 There is no Linux installer release workflow. Before adding one, inventory the
 native libraries actually copied into the artifact, such as GTK, GLib,

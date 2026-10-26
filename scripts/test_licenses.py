@@ -67,6 +67,21 @@ class LicenseGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "MPL source archive"):
             licenses.validated_inventory()
 
+    def test_native_dependency_version_mismatch_is_rejected(self):
+        path = self.root / "licenses/native.json"
+        data = json.loads(path.read_text())
+        data[0]["via"]["version"] = "0.0.0-unverified"
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "Native component needs re-verification"):
+            licenses.validated_inventory()
+
+    def test_tampered_native_notice_is_rejected(self):
+        data = json.loads((self.root / "licenses/native.json").read_text())
+        document = data[0]["documents"][0]
+        (self.root / "licenses" / document["file"]).write_text("changed native notice")
+        with self.assertRaisesRegex(ValueError, "License text changed"):
+            licenses.validated_inventory()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -183,12 +183,12 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    // Handle the press: some macOS menu-bar interactions consume mouse-up.
+                    // Open after release, once the native status-button gesture has finished.
                     if matches!(
                         event,
                         TrayIconEvent::Click {
                             button: MouseButton::Left,
-                            button_state: MouseButtonState::Down,
+                            button_state: MouseButtonState::Up,
                             ..
                         }
                     ) {

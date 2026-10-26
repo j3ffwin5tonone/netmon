@@ -133,7 +133,16 @@ def collect_npm(key,p):
 def collect_native():
     p=PACKAGES['webview2-com-sys']
     d=pathlib.Path(p['manifest_path']).parent
-    sdk=re.search(r'update WebView2 SDK to ([0-9.]+)',(d/'CHANGELOG.md').read_text()).group(1)
+    # Changelog entries can omit the current SDK version. Read the binding
+    # generator at this crate's exact published commit, never a historical entry.
+    commit=json.loads((d/'.cargo_vcs_info.json').read_text())['git']['sha1']
+    if not re.fullmatch(r'[0-9a-f]{40}',commit):
+        raise ValueError('Invalid WebView2 source commit')
+    version_source=f'https://raw.githubusercontent.com/wravery/webview2-rs/{commit}/crates/update-bindings/src/main.rs'
+    match=re.search(r'const WEBVIEW2_VERSION:\s*&str\s*=\s*"([0-9.]+)";',get(version_source).decode('utf-8'))
+    if not match:
+        raise ValueError('WebView2 SDK version missing in exact upstream source: '+version_source)
+    sdk=match.group(1)
     url=f'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/{sdk}/microsoft.web.webview2.{sdk}.nupkg'
     data=get(url)
     archive=zipfile.ZipFile(io.BytesIO(data))
@@ -144,7 +153,7 @@ def collect_native():
             raise ValueError('WebView2 loader differs from Microsoft SDK: '+arch)
         hashes[arch]=hashlib.sha256(original).hexdigest()
     return [{'name':'Microsoft.Web.WebView2 SDK / WebView2Loader','version':sdk,'license':'BSD-3-Clause',
-        'source':url,'archive_sha256':hashlib.sha256(data).hexdigest(),
+        'source':url,'version_source':version_source,'archive_sha256':hashlib.sha256(data).hexdigest(),
         'via':{'name':p['name'],'version':p['version']},'binary_sha256':hashes,
         'documents':[doc(name,archive.read(name),url+' :: '+name) for name in ['LICENSE.txt','NOTICE.txt']]}]
 
