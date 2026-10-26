@@ -3,6 +3,7 @@ name = "netmon"
 version = "0.2.0"
 description = "Network Monitor Tray App"
 authors = ["Andreas"]
+license = "MIT"
 edition = "2021"
 
 [lib]

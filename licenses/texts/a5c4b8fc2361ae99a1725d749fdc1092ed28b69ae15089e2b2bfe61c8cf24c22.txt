@@ -1,0 +1,3 @@
+License: MIT
+Authors (package metadata): Mads Marquart <mads@marquart.dk>
+Full standard terms are included separately. Existing upstream notices are preserved above.

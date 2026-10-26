@@ -26,6 +26,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Setup Python for license verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: License inventory and source archives
+        run: npm run licenses:check
+
       - name: Build Tauri app
         run: npm run tauri build
 

@@ -11,7 +11,7 @@
 [![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black?logo=apple)](https://github.com/j3ffwin5tonone/netmon/releases)
 [![Windows](https://img.shields.io/badge/Windows-x64-0078D6?logo=windows&logoColor=white)](https://github.com/j3ffwin5tonone/netmon/releases)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?logo=tauri&logoColor=white)](https://tauri.app)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 *Live metrics in the tray — click for a full dashboard with 60-second history.*
 
@@ -55,6 +55,7 @@ The installer uses the **system WebView2** runtime (downloaded at install time i
 |--------|--------|
 | **Left-click** tray icon | Open the dashboard window |
 | **Right-click** tray icon | Menu → Quit |
+| **Right-click → About & Licenses** | Version, copyright, offline license texts and source availability |
 | **Hover** tray icon | Show full units (macOS / Linux) or live metrics (Windows) |
 
 ## Metrics
@@ -68,7 +69,7 @@ The installer uses the **system WebView2** runtime (downloaded at install time i
 
 ## Building from source
 
-Requirements: [Node.js](https://nodejs.org/) 18+, [Rust](https://rustup.rs) (stable).
+Requirements: [Node.js](https://nodejs.org/) 18+, [Rust](https://rustup.rs) (stable), Python 3.11+ (offline license verification).
 
 - **macOS:** Xcode Command Line Tools
 - **Windows:** [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (usually preinstalled on Windows 10/11), plus Visual Studio C++ build tools for Rust
@@ -113,4 +114,17 @@ The backend collects a `MetricsSnapshot` every second and emits it to the fronte
 
 ## License
 
-MIT
+The original netmon code and artwork are licensed under the [MIT License](LICENSE).
+Copyright (c) 2026 Andreas Distel.
+
+Third-party components retain their own licenses. Their original notices, full
+standard license texts and exact source references are available offline in the
+tray menu under **About & Licenses** and in [the generated notices](static/licenses.html).
+The installers also include `LICENSE`, `licenses.html` and `legal-sources/` as
+application resources. Exact MPL source archives are included rather than relying
+only on external download links.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for scope, provenance,
+platform-specific distribution obligations and the update procedure. The build
+fails when lockfiles, source archives or generated notices no longer match the
+reviewed license inventory.

@@ -1,0 +1,3 @@
+License: MPL-2.0
+Authors (package metadata): The Servo Project Developers
+Full standard terms are included separately. Existing upstream notices are preserved above.

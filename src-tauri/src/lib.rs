@@ -3,9 +3,9 @@ mod metrics;
 use metrics::{format_tray_title, format_tray_tooltip, AppState, MetricsHistory};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 #[tauri::command]
 fn get_metrics_history(state: State<'_, Mutex<AppState>>) -> MetricsHistory {
@@ -32,8 +32,28 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            // Build during setup, not inside a synchronous menu handler (WebView2).
+            // The offline notices need neither JavaScript nor IPC capabilities.
+            let about_window =
+                WebviewWindowBuilder::new(app, "about", WebviewUrl::App("licenses.html".into()))
+                    .title("About netmon & Licenses")
+                    .inner_size(760.0, 640.0)
+                    .min_inner_size(360.0, 300.0)
+                    .visible(false)
+                    .disable_javascript()
+                    .build()?;
+            let hide_about = about_window.clone();
+            about_window.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = hide_about.hide();
+                }
+            });
+
+            let about = MenuItem::with_id(app, "about", "About & Licenses", true, None::<&str>)?;
+            let separator = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit])?;
+            let menu = Menu::with_items(app, &[&about, &separator, &quit])?;
 
             let window_visible = Arc::new(AtomicBool::new(false));
 
@@ -69,6 +89,12 @@ pub fn run() {
                 .on_menu_event(|app, event| {
                     if event.id() == "quit" {
                         app.exit(0);
+                    } else if event.id() == "about" {
+                        if let Some(window) = app.get_webview_window("about") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
                     }
                 })
                 .on_tray_icon_event(move |tray, event| {

@@ -4,6 +4,9 @@
   "description": "",
   "type": "module",
   "scripts": {
+    "licenses:check": "node scripts/licenses.mjs --check",
+    "licenses:generate": "node scripts/licenses.mjs",
+    "prebuild": "npm run licenses:check",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
